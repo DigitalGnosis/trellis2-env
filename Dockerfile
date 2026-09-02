@@ -51,8 +51,10 @@ ENV PYTHONPATH=/opt/trellis2 \
     HF_HUB_ENABLE_HF_TRANSFER=0 \
     PYTHONUNBUFFERED=1
 
-# Build-time proof (no GPU needed): every extension imports, WebP writes, EXR decodes.
-RUN python -c "import torch, flash_attn, nvdiffrast, o_voxel, cumesh, flex_gemm, trellis2; print({'torch': torch.__version__, 'cuda': torch.version.cuda, 'flash_attn': flash_attn.__version__})" \
+# Build-time proof (no GPU on the builder): the GPU-free modules import, WebP writes, EXR decodes.
+# o_voxel / flex_gemm / trellis2 cannot be imported here: flex_gemm's Triton autotuner asks for an
+# active GPU driver at import time ("0 active drivers"). They are proven at run time on the card.
+RUN python -c "import torch, flash_attn, nvdiffrast, cumesh; print({'torch': torch.__version__, 'cuda': torch.version.cuda, 'flash_attn': flash_attn.__version__})" \
     && python -c "from PIL import Image; import io; Image.new('RGB',(4,4)).save(io.BytesIO(), format='WEBP'); print('PILLOW_WEBP=OK')" \
     && python -c "import cv2; assert cv2.__version__.startswith('4.'), cv2.__version__; import numpy; im = cv2.imread('/opt/trellis2/assets/hdri/forest.exr', cv2.IMREAD_UNCHANGED); assert im is not None, 'EXR decode failed'; print('EXR_DECODE=OK', cv2.__version__, im.shape)" \
     && python -c "import transformers, PIL; print({'transformers': transformers.__version__, 'pillow': PIL.__version__})" \
