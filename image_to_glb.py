@@ -1,6 +1,6 @@
 """Image -> textured GLB with TRELLIS.2. Baked into the foundry image.
 
-usage: image_to_glb.py INPUT_IMAGE OUT_DIR [--no-video] [--texture-size N] [--decimate N]
+usage: image_to_glb.py INPUT_IMAGE OUT_DIR [--no-video] [--texture-size N] [--decimate N] [--pipeline-type 1536_cascade] [--seed N]
 Writes OUT_DIR/model.glb (PNG textures), OUT_DIR/turntable.mp4 (unless --no-video),
 OUT_DIR/marks.json (timings, peak VRAM, mesh counts).
 """
@@ -21,6 +21,9 @@ parser.add_argument("--texture-size", type=int, default=4096)
 parser.add_argument("--decimate", type=int, default=1000000)
 parser.add_argument("--hdri", default="/opt/trellis2/assets/hdri/forest.exr")
 parser.add_argument("--model", default="microsoft/TRELLIS.2-4B")
+parser.add_argument("--pipeline-type", default=None, choices=[None, "512", "1024", "1024_cascade", "1536_cascade"],
+                    help="TRELLIS.2 resolution mode (default: the model's own default, 1024_cascade for TRELLIS.2-4B)")
+parser.add_argument("--seed", type=int, default=42)
 args = parser.parse_args()
 
 import cv2, imageio, torch  # noqa: E402
@@ -48,7 +51,9 @@ image = Image.open(args.input_image)
 marks["input_size"] = list(image.size)
 marks["input_mode"] = image.mode
 torch.cuda.reset_peak_memory_stats()
-mesh = pipeline.run(image)[0]
+mesh = pipeline.run(image, seed=args.seed, pipeline_type=args.pipeline_type)[0]
+marks["pipeline_type"] = args.pipeline_type or getattr(pipeline, "default_pipeline_type", "default")
+marks["seed"] = args.seed
 marks["run_s"] = round(time.time() - t, 1)
 marks["peak_vram_gb"] = round(torch.cuda.max_memory_allocated() / 1e9, 2)
 t = time.time()
